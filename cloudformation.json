@@ -37,6 +37,12 @@
       "Description" : "Humio will only subscribe to log groups with the prefix specified.",
       "Default" : ""
     },
+    "HumioCloudWatchLogsSubscriptionTagName" : {
+      "Type" : "String",
+      "Description" : "Humio will only subscribe to log groups that have a tag with this name, irregardless of the tag's value.",
+      "AllowedPattern" : "[\\p{L}\\p{Z}\\p{N}_.:/=+@-]*",
+      "Default" : ""
+    },
     "EnableCloudWatchLogsBackfillerAutoRun" : {
       "Type" : "String",
       "AllowedValues" : [
@@ -67,6 +73,11 @@
       "Type" : "String",
       "AllowedValues" : ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
       "Default" : "INFO"
+    },
+    "SourceCodeBucket" : {
+      "Type" : "String",
+      "Description" : "The name of the S3 bucket where your Lambda code has been uploaded to. The actual bucket name will be appended with \"-<region>\" (e.g. my-bucket-us-west-2)",
+      "Default" : "humio-public"
     },
     "Version" : {
       "Type" : "String",
@@ -177,7 +188,10 @@
       "Properties" : {
         "Code" : {
           "S3Bucket" : {
-            "Fn::Join" : [ "-", [ "humio-public", { "Ref" : "AWS::Region" } ] ]
+            "Fn::Join" : [
+              "-",
+              [ { "Ref" : "SourceCodeBucket" }, { "Ref" : "AWS::Region"}]
+            ]
           },
           "S3Key" : {
             "Fn::Join" : [ "_", [ { "Ref" : "Version" }, "cloudwatch2humio.zip" ] ]
@@ -238,7 +252,7 @@
       "Properties" : {
         "Code" : {
           "S3Bucket" : {
-            "Fn::Join" : [ "-", [ "humio-public", { "Ref" : "AWS::Region" } ] ]
+            "Fn::Join" : [ "-", [ { "Ref" : "SourceCodeBucket"}, { "Ref" : "AWS::Region" } ] ]
           },
           "S3Key" : {
             "Fn::Join" : [ "_", [ { "Ref" : "Version" }, "cloudwatch2humio.zip" ] ]
@@ -250,6 +264,7 @@
               "Fn::GetAtt" : [ "HumioCloudWatchLogsIngester", "Arn" ]
             },
             "humio_subscription_prefix" : { "Ref" : "HumioCloudWatchLogsSubscriptionPrefix" },
+            "humio_subscription_tag_name" : { "Ref" : "HumioCloudWatchLogsSubscriptionTagName" },
             "log_level" : { "Ref" : "HumioLambdaLogLevel" }
           }
         },
@@ -305,7 +320,7 @@
       "Properties" : {
         "Code" : {
           "S3Bucket" : {
-            "Fn::Join" : [ "-", [ "humio-public", { "Ref" : "AWS::Region" } ] ]
+            "Fn::Join" : [ "-", [ {"Ref" : "SourceCodeBucket"}, { "Ref" : "AWS::Region" } ] ]
           },
           "S3Key" : {
             "Fn::Join" : [ "_", [ { "Ref" : "Version" }, "cloudwatch2humio.zip" ] ]
@@ -438,7 +453,7 @@
           "detail-type" : [ "AWS API Call via CloudTrail" ],
           "detail" : {
             "eventSource" : [ "logs.amazonaws.com" ],
-            "eventName" : [ "CreateLogGroup" ]
+            "eventName" : [ "CreateLogGroup", "TagLogGroup" ]
           }
         },
         "Name" : {
@@ -462,7 +477,7 @@
       "Properties" : {
         "Code" : {
           "S3Bucket" : {
-            "Fn::Join" : [ "-", [ "humio-public", { "Ref" : "AWS::Region" } ] ]
+            "Fn::Join" : [ "-", [ {"Ref" : "SourceCodeBucket"}, { "Ref" : "AWS::Region" } ] ]
           },
           "S3Key" : {
             "Fn::Join" : [ "_", [ { "Ref" : "Version" }, "cloudwatch2humio.zip" ] ]
@@ -523,7 +538,7 @@
       "Properties" : {
         "Code" : {
           "S3Bucket" : {
-            "Fn::Join" : [ "-", [ "humio-public", { "Ref" : "AWS::Region" } ] ]
+            "Fn::Join" : [ "-", [ {"Ref" : "SourceCodeBucket"}, { "Ref" : "AWS::Region" } ] ]
           },
           "S3Key" : {
             "Fn::Join" : [ "_", [ { "Ref" : "Version" }, "cloudwatch2humio.zip" ] ]

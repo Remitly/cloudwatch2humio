@@ -27,32 +27,24 @@ def lambda_handler(event, context):
     # This is used when starting the backfiller automatically.
     send_custom_resource_response(event, context)
 
+    logger.warn("*** Early-out of back filler because there's a bug that I believe is going to delete all subscriptions! ***")
+    return
+
     # Set environment variables.
     humio_log_ingester_arn = os.environ["humio_log_ingester_arn"]
     humio_subscription_prefix = os.environ.get("humio_subscription_prefix")
+    humio_subscription_tag_name = os.environ.get("humio_subscription_tag_name")
 
     # Set up CloudWatch Logs client.
     log_client = boto3.client("logs")
 
     # Grab all log groups with a token and/or prefix if we have them.
+    describe_log_groups_args = {}
     if "nextToken" in event.keys():
-        next_token = event["nextToken"]
-        if humio_subscription_prefix:
-            log_groups = log_client.describe_log_groups(
-                logGroupNamePrefix=humio_subscription_prefix,
-                nextToken=next_token
-            )
-        else:
-            log_groups = log_client.describe_log_groups(
-                nextToken=next_token
-            )
-    else:
-        if humio_subscription_prefix:
-            log_groups = log_client.describe_log_groups(
-                logGroupNamePrefix=humio_subscription_prefix,
-            )
-        else:
-            log_groups = log_client.describe_log_groups()
+        describe_log_groups_args["nextToken"] = next_token
+    if humio_subscription_prefix:
+        describe_log_groups_args["logGroupNamePrefix"] = humio_subscription_prefix
+    log_groups = log_client.describe_log_groups(**describe_log_groups_args)
 
     # If we have a next token, recursively fire another instance of backfiller with it.
     if "nextToken" in log_groups.keys():
@@ -66,6 +58,20 @@ def lambda_handler(event, context):
 
     # Loop through log groups.
     for log_group in log_groups["logGroups"]:
+        # If we are filtering based on tag inclusion, we must get tags for each log group and look for inclusion of the
+        # specified tag.
+        if humio_subscription_tag_name:
+            log_group_tags = log_client.list_tags_log_group(
+                logGroupName=log_group["logGroupName"]
+            )["tags"]
+            if humio_subscription_tag_name not in log_group_tags:
+                logger.debug(
+                    "No tag %s found in log group %s. Skipping.",
+                    humio_subscription_tag_name,
+                    log_group["logGroupName"]
+                )
+                continue
+
         # Grab all subscriptions for the specified log group.
         all_subscription_filters = log_client.describe_subscription_filters(
             logGroupName=log_group["logGroupName"]
@@ -74,6 +80,7 @@ def lambda_handler(event, context):
         # First we check to see if there are any filters at all.
         if all_subscription_filters["subscriptionFilters"]:
             # If our function is not subscribed, delete subscription and create ours.
+            # TODO: This is an issue. We didn't filter subscriptions, THIS IS JUST GOING TO DELETE ALL CURRENT SUBSCRIPTIONS!!!
             if all_subscription_filters["subscriptionFilters"][0]["destinationArn"] != humio_log_ingester_arn:
                 helpers.delete_subscription(
                     log_client,
